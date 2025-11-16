@@ -1,3 +1,10 @@
+# Build / IDE artifacts
+.next/
+.coverage
+coverage/
+dist/
+.parcel-cache/
+.turbo/
 # Logs
 logs
 *.log
