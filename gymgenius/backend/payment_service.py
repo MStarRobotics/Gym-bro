@@ -353,9 +353,6 @@ async def verify_payment(
 
             if generated_signature != verify_request.razorpay_signature:
                 raise HTTPException(status_code=400, detail="Invalid payment signature")
-            # (Legacy commented-out implementation removed; using runtime
-            # verification above.)
-        # above.)
 
         # NOTE: Update order/subscription in in-memory store
         order = ORDERS_STORE.get(verify_request.razorpay_order_id)
