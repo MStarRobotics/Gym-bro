@@ -71,15 +71,11 @@ async def test_verify_updates_subscription_and_order():
             digestmod=hashlib.sha256,
         ).hexdigest()
 
-        resp = await client.post(
-            "/api/payments/verify-payment", json=verify_payload
-        )
+        resp = await client.post("/api/payments/verify-payment", json=verify_payload)
         assert resp.status_code == 200
         assert ps.ORDERS_STORE[order_id]["status"] == "completed"
         assert verify_payload["user_id"] in ps.SUBSCRIPTIONS_STORE
-        assert (
-            ps.SUBSCRIPTIONS_STORE[verify_payload["user_id"]]["active"] is True
-        )
+        assert ps.SUBSCRIPTIONS_STORE[verify_payload["user_id"]]["active"] is True
 
 
 async def test_webhook_signature_verification():
@@ -99,9 +95,7 @@ async def test_webhook_signature_verification():
             digestmod=hashlib.sha256,
         ).hexdigest()
         headers = {"X-Razorpay-Signature": signature}
-        resp = await client.post(
-            "/api/payments/webhook", content=body, headers=headers
-        )
+        resp = await client.post("/api/payments/webhook", content=body, headers=headers)
         assert resp.status_code == 200
         assert resp.json().get("status") == "acknowledged"
 
@@ -134,9 +128,7 @@ async def test_webhook_captures_existing_order():
             digestmod=hashlib.sha256,
         ).hexdigest()
         headers = {"X-Razorpay-Signature": signature}
-        resp = await client.post(
-            "/api/payments/webhook", content=body, headers=headers
-        )
+        resp = await client.post("/api/payments/webhook", content=body, headers=headers)
         assert resp.status_code == 200
         assert ps.ORDERS_STORE[order_id]["status"] == "captured"
 
@@ -180,9 +172,7 @@ async def test_verify_with_invalid_signature_returns_400():
             "user_id": "user-1234",
         }
 
-        resp = await client.post(
-            "/api/payments/verify-payment", json=verify_payload
-        )
+        resp = await client.post("/api/payments/verify-payment", json=verify_payload)
         assert resp.status_code == 400
 
 

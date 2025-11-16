@@ -44,3 +44,6 @@ __pycache__/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+
+# ESLint result files
+.eslint-results*.json

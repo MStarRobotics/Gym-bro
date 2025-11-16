@@ -72,9 +72,7 @@ def _require_signature_if_configured(
 ):
     """Enforce that a webhook signature exists when a secret is configured."""
     if webhook_secret and not webhook_signature:
-        raise HTTPException(
-                status_code=400, detail=MISSING_WEBHOOK_SIGNATURE
-            )
+        raise HTTPException(status_code=400, detail=MISSING_WEBHOOK_SIGNATURE)
 
 
 def _verify_signature(
@@ -89,13 +87,9 @@ def _verify_signature(
             webhook_secret.encode(), webhook_body, digestmod=hashlib.sha256
         ).hexdigest()
         if expected != webhook_signature:
-            raise HTTPException(
-                status_code=400, detail=INVALID_WEBHOOK_SIGNATURE
-            )
+            raise HTTPException(status_code=400, detail=INVALID_WEBHOOK_SIGNATURE)
     except Exception:
-        raise HTTPException(
-            status_code=400, detail=INVALID_WEBHOOK_SIGNATURE
-        )
+        raise HTTPException(status_code=400, detail=INVALID_WEBHOOK_SIGNATURE)
 
 
 def _parse_event(webhook_body: bytes):
@@ -131,9 +125,9 @@ def _handle_subscription_charged(event_data: dict):
         payload = event_data["payload"].get("subscription", {})
         user_id = payload.get("user_id") or payload.get("customer_id")
         if user_id and user_id in SUBSCRIPTIONS_STORE:
-            SUBSCRIPTIONS_STORE[user_id]["last_charged_at"] = (
-                datetime.now(timezone.utc).isoformat()
-            )
+            SUBSCRIPTIONS_STORE[user_id]["last_charged_at"] = datetime.now(
+                timezone.utc
+            ).isoformat()
             SUBSCRIPTIONS_STORE[user_id]["active"] = True
 
 
@@ -144,7 +138,6 @@ def _handle_subscription_cancelled(event_data: dict):
         user_id = payload.get("user_id") or payload.get("customer_id")
         if user_id and user_id in SUBSCRIPTIONS_STORE:
             SUBSCRIPTIONS_STORE[user_id]["active"] = False
-
 
     def _dispatch_webhook_event(
         webhook_body: bytes,
@@ -248,9 +241,7 @@ async def create_payment_order(
             "starter_yearly": 10000,
         }
         if order_request.subscription_plan not in SUPPORTED_PLANS:
-            raise HTTPException(
-                status_code=400, detail="Invalid subscription plan"
-            )
+            raise HTTPException(status_code=400, detail="Invalid subscription plan")
         # NOTE: Order creation is a placeholder; stores no DB record yet
         # order_data = {
         #     "amount": order_request.amount,
@@ -342,8 +333,7 @@ async def verify_payment(
         if not os.getenv("RAZORPAY_KEY_SECRET"):
             # If no secret configured, log and accept for now (test/stub mode)
             logger.warning(
-                "PAYMENT_VERIFY: Missing RAZORPAY_KEY_SECRET; "
-                "skipping verification"
+                "PAYMENT_VERIFY: Missing RAZORPAY_KEY_SECRET; " "skipping verification"
             )
         else:
             _msg = (
@@ -362,9 +352,7 @@ async def verify_payment(
             ).hexdigest()
 
             if generated_signature != verify_request.razorpay_signature:
-                raise HTTPException(
-                    status_code=400, detail="Invalid payment signature"
-                )
+                raise HTTPException(status_code=400, detail="Invalid payment signature")
             # (Legacy commented-out implementation removed; using runtime
             # verification above.)
         # above.)
@@ -478,6 +466,4 @@ async def payment_webhook(request: Request):
             f"error={str(e)} | "
             f"trace_id={trace_id}"
         )
-        raise HTTPException(
-            status_code=400, detail="Webhook processing failed"
-        )
+        raise HTTPException(status_code=400, detail="Webhook processing failed")

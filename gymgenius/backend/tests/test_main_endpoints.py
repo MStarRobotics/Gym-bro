@@ -10,6 +10,7 @@ class DummyProvider:
 
     async def generate_response(self, prompt: str, trace_id=None):
         import asyncio
+
         await asyncio.sleep(0)
         return f"echo: {prompt}"
 

@@ -172,9 +172,7 @@ def get_ai_provider(
         )
 
     try:
-        return create_ai_provider(
-            provider_type, api_key, generate_request.model
-        )
+        return create_ai_provider(provider_type, api_key, generate_request.model)
     except ValueError as e:
         logger.error(
             f"PROVIDER_CREATION_ERROR: {str(e)} | "
@@ -244,12 +242,8 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "api_keys": {
-            "google": (
-                "configured" if google_key_configured else "not_configured"
-            ),
-            "openai": (
-                "configured" if openai_key_configured else "not_configured"
-            ),
+            "google": ("configured" if google_key_configured else "not_configured"),
+            "openai": ("configured" if openai_key_configured else "not_configured"),
         },
         "default_provider": default_provider,
     }
