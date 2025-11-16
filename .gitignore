@@ -47,3 +47,6 @@ __pycache__/
 
 # ESLint result files
 .eslint-results*.json
+
+# Security scan reports
+bandit-report.json
