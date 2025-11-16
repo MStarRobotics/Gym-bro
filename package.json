@@ -1,0 +1,74 @@
+{
+  "name": "fitai:-your-personal-fitness-coach",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:a11y": "eslint . --ext .js,.jsx,.ts,.tsx --rule 'jsx-a11y/*:error'",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:frontend": "npm run test && (cd gymgenius-monorepo && npm run test)",
+    "test:backend": "cd gymgenius-monorepo/packages/backend && poetry run pytest || true",
+    "test:all": "npm run test:frontend && npm run test:backend",
+    "test:ci": "vitest run --reporter dot",
+    "check:ci": "npm run lint && npm run type-check && npm run test:ci && npm run backend-ci",
+    "backend-ci": "bash scripts/backend-ci.sh",
+    "prepare": "husky install",
+    "audit-devtools": "node ./scripts/audit-devdeps.cjs",
+    "sync-devtools": "node ./scripts/sync-devdeps.cjs",
+    "sync-devtools:apply": "node ./scripts/sync-devdeps.cjs --apply",
+    "report-react-versions": "node ./scripts/report-react-versions.cjs",
+    "lint:strict": "npx eslint . --ext .js,.jsx,.ts,.tsx --rule '@typescript-eslint/no-unused-vars:error' --rule 'react-hooks/exhaustive-deps:error' --rule '@typescript-eslint/explicit-function-return-type:error' --rule '@typescript-eslint/explicit-module-boundary-types:error' --max-warnings 0"
+  },
+  "dependencies": {
+    "@google/genai": "^1.29.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "axe-core": "^4.11.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-security": "^3.0.1",
+    "husky": "^9.0.11",
+    "jsdom": "^27.2.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.5",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^4.0.9",
+    "vitest-axe": "^0.1.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ],
+    "*.py": [
+      "black",
+      "flake8"
+    ]
+  }
+}

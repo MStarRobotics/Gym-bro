@@ -1,0 +1,231 @@
+name: Staging Deploy
+
+on:
+    schedule:
+        - cron: "0 2 * * *" # nightly at 02:00 UTC
+    workflow_dispatch:
+    push:
+        branches: [main]
+
+jobs:
+    staging-deploy:
+        if: "${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'schedule') || (github.event_name == 'workflow_dispatch') }}"
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Try downloading admin build artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: admin-build
+                  path: admin-artifact
+            - name: Try downloading nutritionist build artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: nutritionist-build
+                  path: nutritionist-artifact
+            - name: Try downloading client android artifacts (AAB/APK)
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: client-app-aab
+                  path: client-artifact
+            - name: Try downloading client android apk artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: client-app-apk
+                  path: client-artifact
+            - name: Try downloading client flavor AABs
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: client-app-flavor-aabs
+                  path: client-artifact
+            - name: Try downloading client flavor APKs
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: client-app-flavor-apks
+                  path: client-artifact
+            - name: Try downloading trainer android artifacts (AAB/APK)
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: trainer-app-aab
+                  path: trainer-artifact
+            - name: Try downloading trainer android apk artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: trainer-app-apk
+                  path: trainer-artifact
+            - name: Try downloading trainer flavor AABs
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: trainer-app-flavor-aabs
+                  path: trainer-artifact
+            - name: Try downloading trainer flavor APKs
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: trainer-app-flavor-apks
+                  path: trainer-artifact
+            - name: Cache Admin node modules
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      apps/admin-panel/node_modules
+                      ~/.npm
+                  key: ${{ runner.os }}-admin-build-node-${{ hashFiles('apps/admin-panel/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-admin-build-node-
+
+            - name: Cache Nutritionist node modules
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      apps/nutritionist-panel/node_modules
+                      ~/.npm
+                  key: ${{ runner.os }}-nutritionist-build-node-${{ hashFiles('apps/nutritionist-panel/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nutritionist-build-node-
+
+            - name: Build Admin Panel only if artifact missing
+              working-directory: apps/admin-panel
+              run: |
+                  if [ ! -d admin-artifact ] || [ -z "$(ls -A admin-artifact 2>/dev/null || true)" ]; then
+                    echo "No admin artifact found, building admin panel..."
+                    npm ci --silent
+                    npm run build
+                  else
+                    echo "Admin artifact found, using artifact instead of build."
+                    mkdir -p apps/admin-panel/.next
+                    cp -a admin-artifact/. apps/admin-panel/.next/
+                  fi
+
+            - name: Build Nutritionist Panel only if artifact missing
+              working-directory: apps/nutritionist-panel
+              run: |
+                  if [ ! -d nutritionist-artifact ] || [ -z "$(ls -A nutritionist-artifact 2>/dev/null || true)" ]; then
+                    echo "No nutritionist artifact found, building nutritionist panel..."
+                    npm ci --silent
+                    npm run build
+                  else
+                    echo "Nutritionist artifact found, using artifact instead of build."
+                    mkdir -p apps/nutritionist-panel/.next
+                    cp -a nutritionist-artifact/. apps/nutritionist-panel/.next/
+                  fi
+
+            - name: Use downloaded artifacts for staging review
+              run: |
+                  if [ -d admin-artifact ]; then
+                    mkdir -p apps/admin-panel/.next
+                    mv admin-artifact/* apps/admin-panel/.next || true
+                  fi
+                  if [ -d nutritionist-artifact ]; then
+                    mkdir -p apps/nutritionist-panel/.next
+                    mv nutritionist-artifact/* apps/nutritionist-panel/.next || true
+                  fi
+                  if [ -d client-artifact ]; then
+                    mkdir -p staging-artifacts/android/client
+                    mv client-artifact/* staging-artifacts/android/client || true
+                  fi
+                  if [ -d trainer-artifact ]; then
+                    mkdir -p staging-artifacts/android/trainer
+                    mv trainer-artifact/* staging-artifacts/android/trainer || true
+                  fi
+            - name: Upload artifacts for staging review
+              uses: actions/upload-artifact@v4
+              with:
+                  name: staging-artifacts
+                  path: |
+                      apps/admin-panel/.next
+                      apps/nutritionist-panel/.next
+                      staging-artifacts/android
+
+            - name: Configure AWS credentials for S3 upload (optional)
+              if: ${{ github.event_name != 'workflow_run' }}
+              run: |
+                  if [ -z "${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.STAGING_S3_BUCKET }}" ]; then
+                    echo "STAGING AWS credentials or S3_BUCKET missing - skipping AWS configure"
+                  else
+                    echo "Configuring AWS CLI"
+                    mkdir -p ~/.aws
+                    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n" "${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}" "${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}" > ~/.aws/credentials
+                    aws configure set region "${{ secrets.AWS_REGION }}"
+                  fi
+
+            - name: Upload Android artifacts to S3 (if configured)
+              if: ${{ github.event_name != 'workflow_run' }}
+              run: |
+                  S3_BUCKET="${{ secrets.STAGING_S3_BUCKET }}"
+                  if [ -z "${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}" ] || [ -z "$S3_BUCKET" ]; then
+                    echo "AWS credentials or S3 bucket not available - skipping S3 upload"
+                  else
+                    if [ -d staging-artifacts/android/client ]; then
+                      echo "Uploading client android artifacts to S3: $S3_BUCKET"
+                      aws s3 sync staging-artifacts/android/client s3://$S3_BUCKET/android/client/$GITHUB_SHA/ --acl public-read || true
+                    fi
+                    if [ -d staging-artifacts/android/trainer ]; then
+                      echo "Uploading trainer android artifacts to S3: $S3_BUCKET"
+                      aws s3 sync staging-artifacts/android/trainer s3://$S3_BUCKET/android/trainer/$GITHUB_SHA/ --acl public-read || true
+                    fi
+                  fi
+                  if [ -d staging-artifacts/android/client ]; then
+                    echo "Uploading client android artifacts to S3: $S3_BUCKET"
+                    if [ -n "$S3_BUCKET" ]; then
+                      aws s3 sync staging-artifacts/android/client s3://$S3_BUCKET/android/client/$GITHUB_SHA/ --acl public-read || true
+                    fi
+                  fi
+                  if [ -d staging-artifacts/android/trainer ]; then
+                    echo "Uploading trainer android artifacts to S3: $S3_BUCKET"
+                    if [ -n "$S3_BUCKET" ]; then
+                      aws s3 sync staging-artifacts/android/trainer s3://$S3_BUCKET/android/trainer/$GITHUB_SHA/ --acl public-read || true
+                    fi
+                  fi
+
+            - name: Upload Android artifacts to staging server (optional)
+              if: ${{ github.event_name != 'workflow_run' }}
+              run: |
+                  STAGING_DEPLOY="${{ secrets.STAGING_DEPLOY || '' }}"
+                  STAGING_SSH_KEY="${{ secrets.STAGING_SSH_KEY || '' }}"
+                  STAGING_HOST="${{ secrets.STAGING_HOST || '' }}"
+                  if [ -z "$STAGING_SSH_KEY" ] || [ -z "$STAGING_HOST" ]; then
+                    echo "Skipping Android upload to staging server — missing SSH secret or host"
+                  else
+                    echo "$STAGING_SSH_KEY" > /tmp/staging_ssh_key
+                    chmod 600 /tmp/staging_ssh_key
+                    if [ -d staging-artifacts/android/client ]; then
+                      scp -o StrictHostKeyChecking=no -i /tmp/staging_ssh_key -r staging-artifacts/android/client/* ubuntu@$STAGING_HOST:/var/www/android/client || true
+                    fi
+                    if [ -d staging-artifacts/android/trainer ]; then
+                      scp -o StrictHostKeyChecking=no -i /tmp/staging_ssh_key -r staging-artifacts/android/trainer/* ubuntu@$STAGING_HOST:/var/www/android/trainer || true
+                    fi
+                    rm /tmp/staging_ssh_key
+                  fi
+
+            - name: Run staging deploy script
+              if: ${{ github.event_name != 'workflow_run' }}
+              run: |
+                  STAGING_DEPLOY="${{ secrets.STAGING_DEPLOY || '' }}"
+                  STAGING_SSH_KEY="${{ secrets.STAGING_SSH_KEY || '' }}"
+                  STAGING_HOST="${{ secrets.STAGING_HOST || '' }}"
+                  if [ "$STAGING_DEPLOY" != "true" ] || [ -z "$STAGING_SSH_KEY" ] || [ -z "$STAGING_HOST" ]; then
+                    echo "Skipping deploy — STAGING_DEPLOY not true or secrets missing"
+                    exit 0
+                  fi
+                  mkdir -p ~/.ssh
+                  echo "$STAGING_SSH_KEY" > /tmp/staging_ssh_key
+                  chmod 600 /tmp/staging_ssh_key
+                  scp -o StrictHostKeyChecking=no -i /tmp/staging_ssh_key -r apps/admin-panel/.next/ ubuntu@$STAGING_HOST:/var/www/admin
+                  rm /tmp/staging_ssh_key

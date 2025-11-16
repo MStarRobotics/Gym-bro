@@ -1,0 +1,69 @@
+name: Staging Artifact Sync
+
+on:
+    workflow_run:
+        workflows: [GymGenius CI/CD]
+        types:
+            - completed
+
+jobs:
+    artifact-sync:
+        runs-on: ubuntu-latest
+        if: "${{ github.event.workflow_run.head_branch == 'staging' }}"
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Try downloading admin build artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: admin-build
+                  path: admin-artifact
+
+            - name: Try downloading nutritionist build artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: nutritionist-build
+                  path: nutritionist-artifact
+
+            - name: Try downloading client android artifacts (AAB/APK)
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: client-app-aab
+                  path: client-artifact
+
+            - name: Try downloading trainer android artifacts (AAB/APK)
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              with:
+                  name: trainer-app-aab
+                  path: trainer-artifact
+
+            - name: Use downloaded artifacts for staging review
+              run: |
+                  if [ -d admin-artifact ]; then
+                    mkdir -p apps/admin-panel/.next
+                    mv admin-artifact/* apps/admin-panel/.next || true
+                  fi
+                  if [ -d nutritionist-artifact ]; then
+                    mkdir -p apps/nutritionist-panel/.next
+                    mv nutritionist-artifact/* apps/nutritionist-panel/.next || true
+                  fi
+                  if [ -d client-artifact ]; then
+                    mkdir -p staging-artifacts/android/client
+                    mv client-artifact/* staging-artifacts/android/client || true
+                  fi
+                  if [ -d trainer-artifact ]; then
+                    mkdir -p staging-artifacts/android/trainer
+                    mv trainer-artifact/* staging-artifacts/android/trainer || true
+            - name: Upload artifacts for staging review
+              uses: actions/upload-artifact@v4
+              with:
+                  name: staging-artifacts
+                  path: |
+                      apps/admin-panel/.next
+                      apps/nutritionist-panel/.next
+                      staging-artifacts/android

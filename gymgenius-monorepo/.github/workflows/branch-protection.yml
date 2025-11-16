@@ -1,0 +1,31 @@
+ 
+on:
+    workflow_dispatch:
+        inputs:
+            owner:
+                required: true
+                description: Repository owner (org or user)
+            repo:
+                required: true
+                description: Repository name
+            branch:
+                required: true
+                description: Branch name to protect
+            contexts:
+                required: true
+                description: Space-separated list of status check contexts (e.g. "pre-commit-check admin-node-lint-check backend-tests")
+    push:
+        branches: [main]
+
+jobs:
+    protect:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Run branch protection script
+                if: ${{ secrets.GH_ADMIN_TOKEN != '' }}
+                env:
+                    GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+                run: |
+                    chmod +x scripts/set-branch-protection.sh
+                    ./scripts/set-branch-protection.sh ${{ inputs.owner }} ${{ inputs.repo }} ${{ inputs.branch }} ${{ inputs.contexts }}

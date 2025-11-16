@@ -1,0 +1,137 @@
+name: Release and Publish
+
+on:
+    push:
+        tags: ["v*", "release/*"]
+        branches: [staging]
+
+jobs:
+    publish-client:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Check required release secrets
+              run: |
+                  if [ -z "${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}" ] || [ -z "${{ secrets.GPLAY_PACKAGE_NAME }}" ]; then
+                    echo "GPLAY_SERVICE_ACCOUNT_JSON or GPLAY_PACKAGE_NAME is not set. Aborting release job.";
+                    exit 1;
+                  fi
+                  echo "${{ secrets.GPLAY_PACKAGE_NAME }}" > /tmp/gplay_package_name
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: "3.16.0"
+            - name: Get dependencies (Client)
+              working-directory: apps/client-app
+              run: flutter pub get
+            - name: Prepare Android Keystore
+              working-directory: apps/client-app
+              run: |
+                  if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+                    mkdir -p android/app
+                    echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/key.jks
+                    echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > android/key.properties
+                    echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
+                    echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
+                    echo "storeFile=app/key.jks" >> android/key.properties
+                  fi
+            - name: Build AAB
+              working-directory: apps/client-app
+              run: flutter build appbundle --release
+            - name: Decode GPlay JSON
+              run: echo "${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}" | base64 --decode > /tmp/gplay.json
+            - name: Upload to Play - Client (Internal / Alpha track)
+              working-directory: apps/client-app
+              run: |
+                  set -e
+                  gem install fastlane --no-document || true
+                  if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+                    fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track internal --validate_only true || true
+                  else
+                    echo "AAB not found for client: build/app/outputs/bundle/release/app-release.aab"
+                  fi
+            - name: Upload to Play - Client (Production track)
+              working-directory: apps/client-app
+              run: |
+                  set -e
+                  gem install fastlane --no-document || true
+                  if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+                    fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track production || true
+                  else
+                                - name: Upload to Play - Client (Closed/Alpha track)
+                                  working-directory: apps/client-app
+                                  run: |
+                                      set -e
+                                      gem install fastlane --no-document || true
+                                      if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+                                        fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track alpha || true
+                                      else
+                                        echo "AAB not found for client: build/app/outputs/bundle/release/app-release.aab"
+                                      fi
+                    echo "AAB not found for client: build/app/outputs/bundle/release/app-release.aab"
+                  fi
+
+    publish-trainer:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Check required release secrets
+              run: |
+                  if [ -z "${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}" ] || [ -z "${{ secrets.GPLAY_PACKAGE_NAME }}" ]; then
+                    echo "GPLAY_SERVICE_ACCOUNT_JSON or GPLAY_PACKAGE_NAME is not set. Aborting release job.";
+                    exit 1;
+                  fi
+                  echo "${{ secrets.GPLAY_PACKAGE_NAME }}" > /tmp/gplay_package_name
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: "3.16.0"
+            - name: Get dependencies (Trainer)
+              working-directory: apps/trainer-app
+              run: flutter pub get
+            - name: Prepare Android Keystore
+              working-directory: apps/trainer-app
+              run: |
+                  if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+                    mkdir -p android/app
+                    echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/key.jks
+                    echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > android/key.properties
+                    echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
+                    echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
+                    echo "storeFile=app/key.jks" >> android/key.properties
+                  fi
+            - name: Build AAB
+              working-directory: apps/trainer-app
+              run: flutter build appbundle --release
+            - name: Decode GPlay JSON
+              run: echo "${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}" | base64 --decode > /tmp/gplay.json
+            - name: Upload to Play - Trainer (Internal / Alpha track)
+              working-directory: apps/trainer-app
+              run: |
+                  set -e
+                  gem install fastlane --no-document || true
+                  if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+                    fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track internal --validate_only true || true
+                  else
+                    echo "AAB not found for trainer: build/app/outputs/bundle/release/app-release.aab"
+                  fi
+            - name: Upload to Play - Trainer (Production track)
+              working-directory: apps/trainer-app
+              run: |
+                  set -e
+                  gem install fastlane --no-document || true
+                  if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+                    fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track production || true
+                  else
+                                - name: Upload to Play - Trainer (Closed/Alpha track)
+                                  working-directory: apps/trainer-app
+                                  run: |
+                                      set -e
+                                      gem install fastlane --no-document || true
+                                      if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+                                        fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track alpha || true
+                                      else
+                                        echo "AAB not found for trainer: build/app/outputs/bundle/release/app-release.aab"
+                                      fi
+                    echo "AAB not found for trainer: build/app/outputs/bundle/release/app-release.aab"
+                  fi

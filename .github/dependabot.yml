@@ -1,0 +1,101 @@
+version: 2
+updates:
+  # ========================================================================
+  # Frontend Dependencies (npm)
+  # ========================================================================
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '03:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - 'gymgenius-dev-team'
+    assignees:
+      - 'gymgenius-security-team'
+    labels:
+      - 'dependencies'
+      - 'security'
+      - 'automated'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: 'scope'
+    # Security updates only
+    allow:
+      - dependency-type: 'all'
+    # Auto-merge minor and patch security updates
+    versioning-strategy: 'increase'
+    # Ignore major version updates for stability
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # ========================================================================
+  # Backend Dependencies (pip)
+  # ========================================================================
+  - package-ecosystem: 'pip'
+    directory: '/gymgenius/backend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '03:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - 'gymgenius-dev-team'
+    assignees:
+      - 'gymgenius-security-team'
+    labels:
+      - 'dependencies'
+      - 'python'
+      - 'backend'
+      - 'security'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: 'scope'
+    allow:
+      - dependency-type: 'all'
+    versioning-strategy: 'increase'
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # ========================================================================
+  # GitHub Actions
+  # ========================================================================
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '03:00'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'gymgenius-dev-team'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'ci-cd'
+    commit-message:
+      prefix: 'chore(ci)'
+      include: 'scope'
+
+  # ========================================================================
+  # Docker Dependencies
+  # ========================================================================
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '03:00'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'gymgenius-dev-team'
+    labels:
+      - 'dependencies'
+      - 'docker'
+      - 'infrastructure'
+    commit-message:
+      prefix: 'chore(docker)'
+      include: 'scope'

@@ -1,0 +1,31 @@
+{
+  "name": "gymgenius-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:nutritionist": "cd apps/nutritionist-panel && npm run dev",
+    "dev:admin": "cd apps/admin-panel && npm run dev",
+    "build:nutritionist": "cd apps/nutritionist-panel && npm run build",
+    "build:admin": "cd apps/admin-panel && npm run build",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "axe-core": "^4.11.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.9",
+    "vitest-axe": "^0.1.0",
+    "jsdom": "^27.2.0"
+  }
+}

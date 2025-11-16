@@ -1,0 +1,98 @@
+name: Nightly Integration Tests
+
+on:
+    schedule:
+        - cron: "0 3 * * *" # UTC 3:00
+    workflow_dispatch:
+
+jobs:
+    nightly-integration-tests:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                appPath: [apps/client-app, apps/trainer-app]
+                flavor: [dev, qa, staging]
+                api: [31, 33]
+                arch: [x86, x86_64]
+        steps:
+            - uses: actions/checkout@v4
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: "3.16.0"
+            - name: Build debug APK for emulator
+              working-directory: ${{ matrix.appPath }}
+              run: |
+                  flutter pub get
+                  flutter build apk --debug --flavor ${{ matrix.flavor }} --dart-define=TEST_MODE=true
+            - name: Find built APK
+              working-directory: ${{ matrix.appPath }}
+              id: find_apk
+              run: |
+                  APK_PATH=$(find build -type f -name "*.apk" -print | head -n 1)
+                  echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+            - name: Detect package id
+              working-directory: ${{ matrix.appPath }}
+              id: detect_pkg
+              run: |
+                  PKG=$(grep -m1 -oE 'applicationId\s+"[^"]+"' android/app/build.gradle | sed -E 's/applicationId\s+"(.*)"/\1/' || true)
+                  if [ -z "$PKG" ]; then
+                    PKG=$(grep -m1 -oE 'package="[^"]+"' android/app/src/main/AndroidManifest.xml | sed -E 's/package="(.*)"/\1/' || true)
+                  fi
+                  if [ -z "$PKG" ]; then
+                    PKG="unknown.package"
+                  fi
+                  echo "pkg=$PKG" >> $GITHUB_OUTPUT
+            - name: Start emulator and run integration tests
+              uses: reactivecircus/android-emulator-runner@v2
+              env:
+                  APP_DIR: ${{ matrix.appPath }}
+                  APK_PATH: ${{ steps.find_apk.outputs.apk_path }}
+                  PKG: ${{ steps.detect_pkg.outputs.pkg }}
+              with:
+                  api-level: ${{ matrix.api }}
+                  arch: ${{ matrix.arch }}
+                  target: google_apis
+                  emulator-options: "-no-window -no-audio -no-boot-anim"
+                  script: |
+                      set -eux
+                      echo "APK: $APK_PATH"
+                      adb devices
+                      adb wait-for-device
+                      until adb shell getprop sys.boot_completed | grep -m1 1 >/dev/null 2>&1; do sleep 1; done
+                      if [ -f "$APK_PATH" ]; then
+                        adb install -r "$APK_PATH"
+                        sleep 3
+                      else
+                        echo "APK not found: $APK_PATH"
+                        exit 1
+                      fi
+                      echo "Running integration driver for $APP_DIR"
+                      cd "$APP_DIR"
+                      mkdir -p /tmp/integration-logs
+                          for f in integration_test/*.dart; do
+                        if [ -f "$f" ]; then
+                          echo "Running integration test: $f"
+                          flutter drive --driver=test_driver/integration_test_driver.dart --target="$f" -d emulator-5554 --dart-define=TEST_MODE=true 2>&1 | tee "/tmp/integration-logs/$(basename "$f").log"
+                          rc=${PIPESTATUS[0]}
+                          if [ $rc -ne 0 ]; then
+                            echo "Integration test failed: $f"
+                            adb logcat -d > /tmp/integration-logs/adb-${{ matrix.appPath }}-${{ matrix.flavor }}.log || true
+                            adb shell screencap -p /sdcard/screen.png || true
+                            adb pull /sdcard/screen.png /tmp/integration-logs/screen-$(basename "$f").png || true
+                            exit $rc
+                          fi
+                        fi
+                      done
+            - name: Convert integration logs to JUnit XML
+              if: always()
+              run: |
+                  python3 scripts/convert_flutter_logs_to_junit.py /tmp/integration-logs /tmp/junit-results || true
+            - name: Upload artifacts
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: nightly-integration-artifacts-${{ matrix.appPath }}-${{ matrix.flavor }}
+                  path: |
+                      /tmp/integration-logs/
+                      /tmp/junit-results/

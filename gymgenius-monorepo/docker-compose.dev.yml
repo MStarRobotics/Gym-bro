@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: gymgenius
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: gymgenius_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./packages/backend
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://gymgenius:${DB_PASSWORD}@postgres:5432/gymgenius_dev
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key
+      FIREBASE_SERVICE_ACCOUNT_PATH: /secrets/firebase-service-account.json
+      DEBUG: "true"
+    volumes:
+      - ./packages/backend:/app
+      - ./packages/backend/.env:/app/.env
+    ports:
+      - "8000:8000"
+
+  socketio:
+    build: ./packages/backend/socketio
+    depends_on:
+      - redis
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      FIREBASE_SERVICE_ACCOUNT_PATH: /secrets/firebase-service-account.json
+      SOCKETIO_PORT: 3001
+    volumes:
+      - ./packages/backend/socketio:/app
+    ports:
+      - "3001:3001"
+
+volumes:
+  postgres_data:

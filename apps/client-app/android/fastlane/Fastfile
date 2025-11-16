@@ -1,0 +1,22 @@
+default_platform(:android)
+
+platform :android do
+  desc "Upload AAB to internal track (requires service account JSON and package name)
+  lane :upload_to_play do |options|
+    json_key = options[:json_key] || '/tmp/gplay.json'
+    package_name = options[:package_name] || ENV['GPLAY_PACKAGE_NAME']
+    aab_path = options[:aab] || 'build/app/outputs/bundle/release/app-release.aab'
+
+    if !File.exist?(json_key)
+      UI.message("GPlay JSON key not found at #{json_key}")
+      return
+    end
+
+    supply(
+      json_key: json_key,
+      package_name: package_name,
+      aab: aab_path,
+      track: 'internal'
+    )
+  end
+end

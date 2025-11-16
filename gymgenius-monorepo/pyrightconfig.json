@@ -1,0 +1,16 @@
+{
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "executionEnvironments": [
+    {
+      "root": "./packages/backend",
+      "extraPaths": ["./packages/backend"]
+    },
+    {
+      "root": "./gymgenius",
+      "extraPaths": ["./gymgenius"]
+    }
+  ],
+  "exclude": ["**/node_modules", "**/.venv"]
+}

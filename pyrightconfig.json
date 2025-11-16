@@ -1,0 +1,8 @@
+{
+  "include": ["gymgenius", "gymgenius-monorepo"],
+  "typeCheckingMode": "basic",
+  "reportMissingTypeStubs": false,
+  "reportMissingImports": false,
+  "reportAbstractUsage": false,
+  "reportGeneralTypeIssues": false
+}

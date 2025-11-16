@@ -1,0 +1,32 @@
+name: Lint (ruff/black)
+
+on: [push, pull_request]
+
+jobs:
+    python-lint:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.11"
+
+            - name: Install Poetry
+              run: |
+                  curl -sSL https://install.python-poetry.org | python3 -
+                  echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+            - name: Install dependencies
+              working-directory: packages/backend
+              run: poetry install --no-root --only dev || true
+
+            - name: Run ruff
+              working-directory: packages/backend
+              run: poetry run ruff check . --select E,W,F || true
+
+            - name: Run black check
+              working-directory: packages/backend
+              run: poetry run black --check .

@@ -1,0 +1,5 @@
+{
+  "name": "FitAI: Your Personal Fitness Coach",
+  "description": "An AI-powered fitness application to help you achieve your health goals with personalized plans, nutritional analysis, and expert advice powered by Gemini.",
+  "requestFramePermissions": ["geolocation"]
+}

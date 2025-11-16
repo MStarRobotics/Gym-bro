@@ -1,0 +1,57 @@
+name: Release to Alpha/Internal (Manual)
+
+on:
+    workflow_dispatch:
+        inputs:
+            app:
+                description: "app to release (client/trainer)"
+                required: true
+                default: "client"
+            track:
+                description: "Play track to publish (alpha/internal)"
+                required: true
+                default: "alpha"
+
+jobs:
+    release-staging:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: "3.16.0"
+            - name: Build AAB (selected app)
+              run: |
+                  APP=${{ github.event.inputs.app }}
+                  if [ "$APP" = "client" ]; then
+                    cd apps/client-app
+                    flutter pub get
+                    flutter build appbundle --release
+                  elif [ "$APP" = "trainer" ]; then
+                    cd apps/trainer-app
+                    flutter pub get
+                    flutter build appbundle --release
+                  else
+                    echo "Unknown app: $APP"; exit 1;
+                  fi
+            - name: Check required release secrets
+              run: |
+                  if [ -z "${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}" ] || [ -z "${{ secrets.GPLAY_PACKAGE_NAME }}" ]; then
+                    echo "GPLAY_SERVICE_ACCOUNT_JSON or GPLAY_PACKAGE_NAME is not set. Aborting release job.";
+                    exit 1;
+                  fi
+                  echo "${{ secrets.GPLAY_PACKAGE_NAME }}" > /tmp/gplay_package_name
+            - name: Decode GPlay JSON
+              run: echo "${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}" | base64 --decode > /tmp/gplay.json
+            - name: Upload to Play (alpha/internal)
+              run: |
+                  APP=${{ github.event.inputs.app }}
+                  TRACK=${{ github.event.inputs.track }}
+                  if [ "$APP" = "client" ]; then
+                    cd apps/client-app
+                  else
+                    cd apps/trainer-app
+                  fi
+                  gem install fastlane --no-document || true
+                  fastlane supply --json_key /tmp/gplay.json --package_name "$(cat /tmp/gplay_package_name)" --aab build/app/outputs/bundle/release/app-release.aab --track ${TRACK} || true

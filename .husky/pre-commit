@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "Running lint and dev tool audit before commit..."
+npm run lint --silent || { echo "Lint failed"; exit 1; }
+npm run audit-devtools --silent || { echo "Dev tools audit failed"; exit 1; }
+echo "Pre-commit checks passed."
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run lint-staged to check and fix staged files
+npx lint-staged
+
+# If lint-staged fails, abort the commit
+if [ $? -ne 0 ]; then
+  echo "❌ Pre-commit checks failed. Please fix the issues before committing."
+  exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"

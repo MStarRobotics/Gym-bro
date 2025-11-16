@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- 
+      SECURITY HEADERS: Content Security Policy (CSP)
+      Protects against XSS attacks by controlling resource loading
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://api.gymgenius.com; frame-ancestors 'none';"
+    />
+    <!--
+      ADDITIONAL SECURITY HEADERS (Configure on Server/CDN):
+      
+      X-Frame-Options: DENY
+      Purpose: Prevents clickjacking by disallowing iframe embedding
+      
+      Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+      Purpose: Forces HTTPS connections, protecting against man-in-the-middle attacks
+      
+      X-Content-Type-Options: nosniff
+      Purpose: Prevents MIME-sniffing attacks by enforcing declared content types
+      
+      Referrer-Policy: strict-origin-when-cross-origin
+      Purpose: Controls referrer information sent to other sites
+      
+      Permissions-Policy: geolocation=(self), microphone=(), camera=()
+      Purpose: Restricts access to sensitive browser features
+      
+      These headers MUST be configured in your production server (Nginx, Apache, CDN)
+      as meta tags have limited support for security headers.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FitAI: Your Personal Fitness Coach</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        background-color: #0f172a; /* slate-900 */
+        background-image: radial-gradient(
+            circle at 10% 20%,
+            rgba(20, 184, 166, 0.2) 0%,
+            transparent 40%
+          ),
+          radial-gradient(
+            circle at 90% 80%,
+            rgba(20, 184, 166, 0.15) 0%,
+            transparent 50%
+          );
+        background-attachment: fixed;
+      }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-fadeInUp {
+        animation: fadeInUp 0.3s ease-out forwards;
+      }
+
+      @keyframes slideInFromLeft {
+        from {
+          opacity: 0;
+          transform: translateX(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+      .animate-slideInFromLeft {
+        animation: slideInFromLeft 0.4s ease-out forwards;
+      }
+
+      /* Retro sidebar style */
+      .sidebar-retro {
+        position: relative;
+        overflow: hidden;
+      }
+      .sidebar-retro::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuOCIgbnVtT2N0YXZlcz0iNCIgc3RpdGNoVGlsZXM9InN0aXRjaCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiBmaWx0ZXI9InVybCgjbnoaXNlKSIgb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==');
+        pointer-events: none;
+        z-index: 1;
+      }
+      .sidebar-retro > * {
+        z-index: 2;
+        position: relative;
+      }
+      .nav-item-retro:hover span,
+      .nav-item-retro:hover svg {
+        text-shadow: 0 0 5px rgba(20, 184, 166, 0.7),
+          0 0 10px rgba(20, 184, 166, 0.5);
+        transform: translateX(5px);
+      }
+      .nav-item-retro span,
+      .nav-item-retro svg {
+        transition: transform 0.2s ease-in-out, text-shadow 0.2s ease-in-out;
+      }
+    </style>
+    <!-- Import maps with polyfill for Safari iOS < 16.4 -->
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.8.2/dist/es-module-shims.js"></script>
+    <!-- Import map shim for compatibility on older Safari -->
+    <script type="importmap-shim">
+      {
+        "imports": {
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+          "react/": "https://aistudiocdn.com/react@^19.2.0/",
+          "react": "https://aistudiocdn.com/react@^19.2.0",
+          "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/index.css" />
+  </head>
+  <body class="text-gray-100">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

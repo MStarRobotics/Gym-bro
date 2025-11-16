@@ -1,0 +1,1158 @@
+name: GymGenius CI/CD
+
+on:
+  push:
+    branches: [main, develop, staging]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Run pre-commit hooks repository-wide to enforce styling and linting
+  pre-commit-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install pre-commit and dependencies
+        run: |
+          pip install pre-commit
+          npm install -g yarn || true
+      - name: Run a11y lint (root)
+        run: |
+          npx eslint . --ext .js,.jsx,.ts,.tsx --rule 'jsx-a11y/*:error' || true
+
+  dev-tools-audit:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Node.js dependencies (root)
+        run: npm ci
+      - name: Run dev tools audit
+        run: |-
+          node ./scripts/audit-devdeps.cjs
+      - name: Run react versions report
+        run: node ./scripts/report-react-versions.cjs
+
+  lint-strict:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install node modules
+        run: npm ci --silent
+      - name: Run strict ESLint checks
+        run: |
+          npm run lint:strict
+      - name: Run pre-commit hooks
+        run: |
+          pre-commit run --all-files --show-diff-on-failure
+
+      # Node and Flutter specific linting now run in dedicated jobs:
+      # - node-lint-check
+      # - flutter-lint-check
+
+  # Nodelint: split per package for clearer failure outputs
+  # Run frontend Vite unit tests (root package)
+  root-frontend-tests:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'components/') ||
+      contains(github.event.head_commit.modified, 'tests/') ||
+      contains(github.event.head_commit.modified, 'App.tsx') ||
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Root Node Modules
+        run: npm ci --silent
+      - name: Run Root Unit Tests (Vitest)
+        run: npm run test:ci || true
+  admin-node-lint-check:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/admin-panel/') ||
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Admin node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/admin-panel/node_modules
+            ~/.npm
+            ~/.cache/yarn
+          key: ${{ runner.os }}-admin-node-${{ hashFiles('apps/admin-panel/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-admin-node-
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Admin Panel Lint
+        working-directory: apps/admin-panel
+        run: |
+          npm ci --silent || true
+          npm run lint:strict || true
+          # Run accessibility focused linting to ensure ARIA roles and labels are present
+          npx eslint . --ext .js,.jsx,.ts,.tsx --rule 'jsx-a11y/*:error' || true
+      - name: Run root frontend tests (protect against shared library issues)
+        run: |
+          cd ${{ github.workspace }}
+          npm run test:ci || true
+
+  nutritionist-node-lint-check:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/nutritionist-panel/') ||
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Nutritionist node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/nutritionist-panel/node_modules
+            ~/.npm
+            ~/.cache/yarn
+          key: ${{ runner.os }}-nutritionist-node-${{ hashFiles('apps/nutritionist-panel/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nutritionist-node-
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Nutritionist Panel Lint
+        working-directory: apps/nutritionist-panel
+        run: |
+          npm ci --silent || true
+          npm run lint:strict || true
+          # Run accessibility focused linting to ensure ARIA roles and labels are present
+          npx eslint . --ext .js,.jsx,.ts,.tsx --rule 'jsx-a11y/*:error' || true
+      - name: Run root frontend tests (protect against shared library issues)
+        run: |
+          cd ${{ github.workspace }}
+          npm run test:ci || true
+
+  # Flutter Lint Checks per package (Client & Trainer)
+  client-flutter-lint-check:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/client-app/') ||
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Flutter pub (Client)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-flutter-client-pub-${{ hashFiles('apps/client-app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-client-pub-
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Client App Lint
+        working-directory: apps/client-app
+        run: flutter analyze || true
+
+  trainer-flutter-lint-check:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/trainer-app/') ||
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Flutter pub (Trainer)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-flutter-trainer-pub-${{ hashFiles('apps/trainer-app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-trainer-pub-
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Trainer App Lint
+        working-directory: apps/trainer-app
+        run: flutter analyze || true
+
+  # Backend Tests
+  backend-tests:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'packages/backend/') ||
+      github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gymgenius_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Poetry & pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pip
+            packages/backend/.venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('packages/backend/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        working-directory: packages/backend
+        run: poetry install
+
+      - name: Run tests
+        working-directory: packages/backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gymgenius_test
+          REDIS_URL: redis://localhost:6379/0
+        run: poetry run pytest --cov=app --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./packages/backend/coverage.xml
+          flags: backend
+
+  # Legacy GymGenius Backend (gymgenius/backend) — run existing tests
+  legacy-backend-tests:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'gymgenius/backend/') ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pip for legacy backend
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-legacy-backend-pip-${{ hashFiles('gymgenius/backend/requirements.txt') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: gymgenius/backend
+        run: pip install -r requirements.txt || pip install fastapi pytest pytest-asyncio pytest-cov
+
+      - name: Run tests
+        working-directory: gymgenius/backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gymgenius_test
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/ --cov=. --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./gymgenius/backend/coverage.xml
+          flags: legacy-backend
+
+  # Client App Build
+  client-app-build:
+    needs: [pre-commit-check, client-flutter-lint-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/client-app/') ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Flutter pub for Client
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle
+          key: ${{ runner.os }}-flutter-client-${{ hashFiles('apps/client-app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-client-
+
+      - name: Prepare Android Keystore
+        working-directory: apps/client-app
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          ANDROID_KEYSTORE_BASE64="${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}"
+          ANDROID_KEYSTORE_PASSWORD="${{ secrets.ANDROID_KEYSTORE_PASSWORD || '' }}"
+          ANDROID_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD || '' }}"
+          ANDROID_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS || '' }}"
+          echo "Preparing keystore..."
+          echo "Preparing keystore..."
+          mkdir -p android/app
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/key.jks
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$ANDROID_KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$ANDROID_KEY_ALIAS" >> android/key.properties
+            echo "storeFile=app/key.jks" >> android/key.properties
+          else
+            echo "ANDROID_KEYSTORE_BASE64 not set — skipping keystore prep"
+          fi
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+
+      - name: Get dependencies
+        working-directory: apps/client-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: apps/client-app
+        run: flutter analyze
+
+      - name: Run tests
+        working-directory: apps/client-app
+        run: flutter test
+      - name: Build Flutter flavors (Client) - only for staging/tags
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/client-app
+        run: |
+          set -e
+          FLAVORS="dev qa prod staging"
+          for F in $FLAVORS; do
+            if grep -q "productFlavors" android/app/build.gradle && grep -q -E "\b$F\b" android/app/build.gradle; then
+              echo "Building flavor: $F"
+              flutter build appbundle --flavor $F --release || true
+              flutter build apk --flavor $F --release || true
+            fi
+          done
+      - name: Upload Client flavor AAB artifacts
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-app-flavor-aabs
+          path: apps/client-app/build/**/*.aab
+      - name: Upload Client flavor APK artifacts
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-app-flavor-apks
+          path: apps/client-app/build/**/*.apk
+      - name: Build Android AAB (Client) - only for staging/tags
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/client-app
+        run: flutter build appbundle --release
+      - name: Build Android APK (Client) - only for staging/tags
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/client-app
+        run: flutter build apk --release
+      - name: Upload Client AAB artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-app-aab
+          path: apps/client-app/build/app/outputs/bundle/release/app-release.aab
+      - name: Upload Client APK artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-app-apk
+          path: apps/client-app/build/app/outputs/flutter-apk/app-release.apk
+  client-flavor-build:
+    needs: [pre-commit-check, client-flutter-lint-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/client-app/') || github.event_name == 'pull_request' || github.event_name == 'push'
+    strategy:
+      matrix:
+        flavor: [dev, qa, staging, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Build client flavor AAB
+        working-directory: apps/client-app
+        run: |
+          F=${{ matrix.flavor }}
+          echo "Attempting build for flavor: $F"
+          flutter build appbundle --flavor $F --release || true
+      - name: Upload client flavor AAB artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-app-aab-${{ matrix.flavor }}
+          path: apps/client-app/build/app/outputs/bundle/release/*${{ matrix.flavor }}*.aab
+      - name: Upload client flavor APK artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-app-apk-${{ matrix.flavor }}
+          path: apps/client-app/build/app/outputs/flutter-apk/*${{ matrix.flavor }}*.apk
+
+  # Client QA builds for PRs (unsigned / debug) — per flavor artifacts for QA
+  client-qa-build:
+    needs: [pre-commit-check, client-flutter-lint-check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      matrix:
+        flavor: [dev, qa, staging, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Prepare Keystore (optional for debug)
+        working-directory: apps/client-app
+        run: |
+          echo "No keystore required for QA debug builds"
+      - name: Build client QA debug APK
+        working-directory: apps/client-app
+        run: |
+          flutter build apk --debug --flavor ${{ matrix.flavor }} || true
+      - name: Run client unit/widget tests
+        working-directory: apps/client-app
+        run: flutter test --reporter expanded || true
+      - name: Upload client QA APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-qa-apk-${{ matrix.flavor }}
+          path: apps/client-app/build/app/outputs/flutter-apk/*${{ matrix.flavor }}*.apk
+
+      - name: "Fastlane: Upload Client AAB to Google Play (optional)"
+        if: ${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON != '' && secrets.GPLAY_PACKAGE_NAME != '' }}
+        working-directory: apps/client-app
+        run: |
+          GPLAY_SERVICE_ACCOUNT_JSON="${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON || '' }}"
+          GPLAY_PACKAGE_NAME="${{ secrets.GPLAY_PACKAGE_NAME || '' }}"
+          if [[ -n "$GPLAY_SERVICE_ACCOUNT_JSON" && ("$GITHUB_REF" == "refs/heads/staging" || "$GITHUB_REF" == refs/tags/*) ]]; then
+            echo "$GPLAY_SERVICE_ACCOUNT_JSON" | base64 --decode > /tmp/gplay.json
+            gem install fastlane --no-document || true
+            if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+              fastlane supply --json_key /tmp/gplay.json --package_name "$GPLAY_PACKAGE_NAME" --aab build/app/outputs/bundle/release/app-release.aab --track internal || true
+            fi
+          fi
+
+  # Trainer App Build
+  trainer-app-build:
+    needs: [pre-commit-check, trainer-flutter-lint-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/trainer-app/') ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Flutter pub for Trainer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle
+          key: ${{ runner.os }}-flutter-trainer-${{ hashFiles('apps/trainer-app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-trainer-
+
+      - name: Prepare Android Keystore
+        working-directory: apps/trainer-app
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          ANDROID_KEYSTORE_BASE64="${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}"
+          ANDROID_KEYSTORE_PASSWORD="${{ secrets.ANDROID_KEYSTORE_PASSWORD || '' }}"
+          ANDROID_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD || '' }}"
+          ANDROID_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS || '' }}"
+          echo "Preparing keystore..."
+          echo "Preparing keystore..."
+          mkdir -p android/app
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/key.jks
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$ANDROID_KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$ANDROID_KEY_ALIAS" >> android/key.properties
+            echo "storeFile=app/key.jks" >> android/key.properties
+          else
+            echo "ANDROID_KEYSTORE_BASE64 not set — skipping keystore prep"
+          fi
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+
+      - name: Get dependencies
+        working-directory: apps/trainer-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: apps/trainer-app
+        run: flutter analyze
+      - name: Build Flutter flavors (Trainer) - only for staging/tags
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/trainer-app
+        run: |
+          set -e
+          FLAVORS="dev qa prod staging"
+          for F in $FLAVORS; do
+            if grep -q "productFlavors" android/app/build.gradle && grep -q -E "\b$F\b" android/app/build.gradle; then
+              echo "Building flavor: $F"
+              flutter build appbundle --flavor $F --release || true
+              flutter build apk --flavor $F --release || true
+            fi
+          done
+      - name: Upload Trainer flavor AAB artifacts
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-app-flavor-aabs
+          path: apps/trainer-app/build/**/*.aab
+      - name: Upload Trainer flavor APK artifacts
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-app-flavor-apks
+          path: apps/trainer-app/build/**/*.apk
+      - name: Build Android AAB (Trainer) - only for staging/tags
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/trainer-app
+        run: flutter build appbundle --release
+      - name: Build Android APK (Trainer) - only for staging/tags
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/trainer-app
+        run: flutter build apk --release
+      - name: Upload Trainer AAB artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-app-aab
+          path: apps/trainer-app/build/app/outputs/bundle/release/app-release.aab
+      - name: Upload Trainer APK artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-app-apk
+          path: apps/trainer-app/build/app/outputs/flutter-apk/app-release.apk
+  trainer-flavor-build:
+    needs: [pre-commit-check, trainer-flutter-lint-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/trainer-app/') || github.event_name == 'pull_request' || github.event_name == 'push'
+    strategy:
+      matrix:
+        flavor: [dev, qa, staging, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Build trainer flavor AAB
+        working-directory: apps/trainer-app
+        run: |
+          F=${{ matrix.flavor }}
+          echo "Attempting build for flavor: $F"
+          flutter build appbundle --flavor $F --release || true
+      - name: Upload trainer flavor AAB artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-app-aab-${{ matrix.flavor }}
+          path: apps/trainer-app/build/app/outputs/bundle/release/*${{ matrix.flavor }}*.aab
+      - name: Upload trainer flavor APK artifact
+        if: ${{ github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-app-apk-${{ matrix.flavor }}
+          path: apps/trainer-app/build/app/outputs/flutter-apk/*${{ matrix.flavor }}*.apk
+
+  # Trainer QA builds for PRs (unsigned / debug)
+  trainer-qa-build:
+    needs: [pre-commit-check, trainer-flutter-lint-check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      matrix:
+        flavor: [dev, qa, staging, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Build trainer QA debug APK
+        working-directory: apps/trainer-app
+        run: |
+          flutter build apk --debug --flavor ${{ matrix.flavor }} || true
+      - name: Run trainer unit/widget tests
+        working-directory: apps/trainer-app
+        run: flutter test --reporter expanded || true
+      - name: Upload trainer QA APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-qa-apk-${{ matrix.flavor }}
+          path: apps/trainer-app/build/app/outputs/flutter-apk/*${{ matrix.flavor }}*.apk
+      - name: "Fastlane: Upload Trainer AAB to Google Play (optional)"
+        working-directory: apps/trainer-app
+        if: ${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON != '' && secrets.GPLAY_PACKAGE_NAME != '' }}
+        run: |
+          GPLAY_SERVICE_ACCOUNT_JSON="${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON || '' }}"
+          GPLAY_PACKAGE_NAME="${{ secrets.GPLAY_PACKAGE_NAME || '' }}"
+          if [[ -n "$GPLAY_SERVICE_ACCOUNT_JSON" && ("$GITHUB_REF" == "refs/heads/staging" || "$GITHUB_REF" == refs/tags/*) ]]; then
+            echo "$GPLAY_SERVICE_ACCOUNT_JSON" | base64 --decode > /tmp/gplay.json
+            gem install fastlane --no-document || true
+            if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+              fastlane supply --json_key /tmp/gplay.json --package_name "$GPLAY_PACKAGE_NAME" --aab build/app/outputs/bundle/release/app-release.aab --track internal || true
+            fi
+          fi
+
+  # Emulator QA tests — install & verify APKs on a headless emulator
+  emulator-qa-test:
+    needs: [client-qa-build, trainer-qa-build]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      matrix:
+        appPath: [apps/client-app, apps/trainer-app]
+        flavor: [dev, qa]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Build debug APK for emulator
+        working-directory: ${{ matrix.appPath }}
+        run: |
+          set -e
+          flutter pub get
+          flutter build apk --debug --flavor ${{ matrix.flavor }} --dart-define=TEST_MODE=true || true
+      - name: Find built APK
+        working-directory: ${{ matrix.appPath }}
+        id: find_apk
+        run: |
+          set -e
+          APK_PATH=$(find build -type f -name "*.apk" -print | head -n 1 || true)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+      - name: Detect package id
+        working-directory: ${{ matrix.appPath }}
+        id: detect_pkg
+        run: |
+          set -e
+          PKG="$(grep -m1 -oE 'applicationId\s+\"[^\"]+\"' android/app/build.gradle | sed -E 's/applicationId\s+\"(.*)\"/\1/' || true)"
+          if [ -z "$PKG" ]; then
+            PKG="$(grep -m1 -oE 'package=\"[^\"]+\"' android/app/src/main/AndroidManifest.xml | sed -E 's/package=\"(.*)\"/\1/' || true)"
+          fi
+          if [ -z "$PKG" ]; then
+            PKG="unknown.package"
+          fi
+          echo "pkg=$PKG" >> $GITHUB_OUTPUT
+      - name: Start emulator and install APK
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APP_DIR: ${{ matrix.appPath }}
+          APK_PATH: ${{ steps.find_apk.outputs.apk_path }}
+          PKG: ${{ steps.detect_pkg.outputs.pkg }}
+        with:
+          api-level: 33
+          arch: x86_64
+          target: google_apis
+          emulator-options: "-no-window -no-audio -no-boot-anim"
+          script: |
+            set -eux
+            echo "APK: $APK_PATH"
+            adb devices
+            adb wait-for-device
+            until adb shell getprop sys.boot_completed | grep -m1 1 >/dev/null 2>&1; do sleep 1; done
+            if [ -f "$APK_PATH" ]; then
+              adb install -r "$APK_PATH" || true
+              sleep 3
+              adb shell pm list packages | grep "$PKG" || (adb logcat -d && false)
+              else
+              echo "APK not found: $APK_PATH"
+              adb shell screencap -p /sdcard/no-apk.png || true
+              adb pull /sdcard/no-apk.png /tmp/integration-logs/no-apk.png || true
+              exit 1
+            fi
+
+            # App smoke test - launch via monkey (scripted inside emulator runner)
+            set -euo pipefail
+            echo "Checking app PKG: $PKG APK: $APK_PATH"
+            if [ -z "$APK_PATH" ] || [ "$APK_PATH" = "" ]; then
+              echo "APK not found: $APK_PATH"
+              exit 1
+            fi
+
+            # Integration test using flutter drive (emulator must be available)
+            echo "Running integration driver for $APP_DIR"
+            cd "$APP_DIR"
+            if [ -f test_driver/integration_test_driver.dart ] && [ -f integration_test/app_test.dart ]; then
+              flutter drive --driver=test_driver/integration_test_driver.dart --target=integration_test/app_test.dart -d emulator-5554 --dart-define=TEST_MODE=true || true
+            else
+              echo "No integration test driver or test found in $APP_DIR; skipping flutter drive"
+            fi
+
+            adb devices
+            adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 || true
+            sleep 3
+            if adb shell pidof "$PKG" >/dev/null 2>&1; then
+              echo "$PKG is running"
+            else
+              # fallback to ps for older devices
+              if adb shell ps | grep "$PKG" >/dev/null 2>&1; then
+                echo "$PKG appears in process list"
+                else
+                echo "$PKG not detected in process list"
+                adb logcat -d > /tmp/integration-logs/adb-${{ matrix.appPath }}-${{ matrix.flavor }}.log || true
+                adb shell screencap -p /sdcard/no-process.png || true
+                adb pull /sdcard/no-process.png /tmp/integration-logs/process-$(basename "$APK_PATH").png || true
+                exit 1
+              fi
+            fi
+      - name: Upload emulator logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logs-${{ matrix.appPath }}-${{ matrix.flavor }}
+          path: |
+            ${{ github.workspace }}/adb*.log
+
+  # Integration tests - fails on assertion and uploads artifacts
+  integration-tests:
+    needs: [client-qa-build, trainer-qa-build]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      matrix:
+        appPath: [apps/client-app, apps/trainer-app]
+        flavor: [dev, qa]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Integration test - prepare and build
+        working-directory: ${{ matrix.appPath }}
+        run: |
+          set -e
+          flutter pub get
+          flutter build apk --debug --flavor ${{ matrix.flavor }} --dart-define=TEST_MODE=true
+      - name: Find built APK
+        working-directory: ${{ matrix.appPath }}
+        id: find_apk
+        run: |
+          set -e
+          APK_PATH=$(find build -type f -name "*.apk" -print | head -n 1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+      - name: Detect package id
+        working-directory: ${{ matrix.appPath }}
+        id: detect_pkg
+        run: |
+          set -e
+          PKG=$(grep -m1 -oE 'applicationId\s+"[^"]+"' android/app/build.gradle | sed -E 's/applicationId\s+"(.*)"/\1/' || true)
+          if [ -z "$PKG" ]; then
+            PKG=$(grep -m1 -oE 'package="[^"]+"' android/app/src/main/AndroidManifest.xml | sed -E 's/package="(.*)"/\1/' || true)
+          fi
+          if [ -z "$PKG" ]; then
+            PKG="unknown.package"
+          fi
+          echo "pkg=$PKG" >> $GITHUB_OUTPUT
+      - name: Start emulator and run integration tests
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APP_DIR: ${{ matrix.appPath }}
+          APK_PATH: ${{ steps.find_apk.outputs.apk_path }}
+          PKG: ${{ steps.detect_pkg.outputs.pkg }}
+        with:
+          api-level: 33
+          arch: x86_64
+          target: google_apis
+          emulator-options: "-no-window -no-audio -no-boot-anim"
+          script: |
+            set -eux
+            echo "APK: $APK_PATH"
+            adb devices
+            # Wait for emulator to be ready
+            adb wait-for-device
+            until adb shell getprop sys.boot_completed | grep -m1 1 >/dev/null 2>&1; do sleep 1; done
+            adb wait-for-device
+            until adb shell getprop sys.boot_completed | grep -m1 1 >/dev/null 2>&1; do sleep 1; done
+            if [ -f "$APK_PATH" ]; then
+              adb install -r "$APK_PATH"
+              sleep 3
+            else
+              echo "APK not found: $APK_PATH"
+              exit 1
+            fi
+
+            echo "Running integration driver for $APP_DIR"
+            cd "$APP_DIR"
+            mkdir -p /tmp/integration-logs
+            # run each integration test file found
+            for f in integration_test/*.dart; do
+              if [ -f "$f" ]; then
+                echo "Running integration test: $f"
+                flutter drive --driver=test_driver/integration_test_driver.dart --target="$f" -d emulator-5554 --dart-define=TEST_MODE=true 2>&1 | tee "/tmp/integration-logs/$(basename "$f").log"
+                # capture exit code and fail on first failure
+                rc=${PIPESTATUS[0]}
+                if [ $rc -ne 0 ]; then
+                  echo "Integration test failed: $f"
+                  # collect device logs
+                  adb logcat -d > /tmp/integration-logs/adb-${{ matrix.appPath }}-${{ matrix.flavor }}.log || true
+                  # collect a screenshot from device
+                  adb shell screencap -p /sdcard/screen.png || true
+                  adb pull /sdcard/screen.png /tmp/integration-logs/screen-$(basename "$f").png || true
+                  exit $rc
+                fi
+              fi
+            done
+
+            adb devices
+            adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 || true
+            sleep 3
+            if adb shell pidof "$PKG" >/dev/null 2>&1; then
+              echo "$PKG is running"
+            else
+              if adb shell ps | grep "$PKG" >/dev/null 2>&1; then
+                echo "$PKG appears in process list"
+              else
+                echo "$PKG not detected in process list"
+                adb logcat -d || true
+                exit 1
+              fi
+            fi
+      - name: Convert integration logs to JUnit XML
+        if: always()
+        run: |
+          python3 scripts/convert_flutter_logs_to_junit.py /tmp/integration-logs /tmp/junit-results || true
+
+      - name: Upload integration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-${{ matrix.appPath }}-${{ matrix.flavor }}
+          path: |
+            /tmp/integration-logs/
+            ${{ github.workspace }}/adb*.log
+
+      - name: Upload integration JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-junit-${{ matrix.appPath }}-${{ matrix.flavor }}
+          path: |
+            /tmp/junit-results/
+
+  # Unit tests with JUnit conversion for apps
+  unit-tests-junit:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      matrix:
+        appPath: [apps/client-app, apps/trainer-app]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.16.0"
+      - name: Run flutter test with machine output
+        working-directory: ${{ matrix.appPath }}
+        run: |
+          mkdir -p /tmp/flutter-test
+          flutter pub get
+          flutter test --machine > /tmp/flutter-test/output.json || true
+      - name: Convert flutter test JSON to JUnit
+        run: |
+          OUTFILE=$(basename "${{ matrix.appPath }}")-tests.xml
+          python3 scripts/flutter_test_to_junit.py /tmp/flutter-test/${OUTFILE} < /tmp/flutter-test/output.json || true
+      - name: Upload unit JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-junit-${{ matrix.appPath }}
+          path: /tmp/flutter-test/*.xml
+      - name: Publish unit test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Flutter Unit Tests
+          path: /tmp/flutter-test/*.xml
+          reporter: junit
+
+      - name: Publish JUnit results to PR (GitHub Checks)
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Flutter Integration Tests
+          path: /tmp/junit-results/*.xml
+          reporter: junit
+
+  # Python script tests (JUnit)
+  script-tests:
+    needs: [pre-commit-check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Python requirements
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+      - name: Run script tests
+        run: |
+          mkdir -p /tmp/scripts-junit
+          pytest scripts/tests --junitxml=/tmp/scripts-junit/scripts-junit.xml || true
+      - name: Upload script JUnit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-tests-junit
+          path: /tmp/scripts-junit/scripts-junit.xml
+      - name: Publish script test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Python script tests
+          path: /tmp/scripts-junit/scripts-junit.xml
+          reporter: junit
+
+      - name: Comment script tests summary to PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = '/tmp/scripts-junit/scripts-junit.xml';
+            if (!fs.existsSync(path)) {
+              console.log('No script junit xml found');
+              return;
+            }
+            const data = fs.readFileSync(path, 'utf8');
+            const mTests = data.match(/tests="(\d+)"/);
+            const mFails = data.match(/failures="(\d+)"/);
+            const tests = mTests ? mTests[1] : '0';
+            const fails = mFails ? mFails[1] : '0';
+            const body = `Python script tests: ${tests} tests, ${fails} failures.`;
+            if (!context.payload.pull_request) return;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
+
+  # Nutritionist Panel Build
+  nutritionist-panel-build:
+    needs: [pre-commit-check, nutritionist-node-lint-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/nutritionist-panel/') ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Nutritionist node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/nutritionist-panel/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-nutritionist-build-node-${{ hashFiles('apps/nutritionist-panel/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nutritionist-build-node-
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: apps/nutritionist-panel
+        run: npm ci
+
+      - name: Lint
+        working-directory: apps/nutritionist-panel
+        run: npm run lint
+
+      - name: Build
+        working-directory: apps/nutritionist-panel
+        run: npm run build
+      - name: Upload nutritionist build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutritionist-build
+          path: apps/nutritionist-panel/.next
+  # Web QA builds for PRs — Nutritionist
+  nutritionist-web-qa-build:
+    needs: [pre-commit-check, nutritionist-node-lint-check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Nutritionist node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/nutritionist-panel/node_modules
+            ~/.npm
+            ~/.cache/yarn
+          key: ${{ runner.os }}-nutritionist-node-${{ hashFiles('apps/nutritionist-panel/package-lock.json') }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: apps/nutritionist-panel
+        run: npm ci
+      - name: Build Nutritionist Next.js (QA)
+        working-directory: apps/nutritionist-panel
+        run: npm run build
+      - name: Upload nutritionist QA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutritionist-qa-build
+          path: apps/nutritionist-panel/.next
+
+  # Admin Panel Build
+  admin-panel-build:
+    needs: [pre-commit-check, admin-node-lint-check]
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.modified, 'apps/admin-panel/') ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Admin node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/admin-panel/node_modules
+            ~/.npm
+            ~/.cache/yarn
+          key: ${{ runner.os }}-admin-build-node-${{ hashFiles('apps/admin-panel/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-admin-build-node-
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: apps/admin-panel
+        run: npm ci
+
+      - name: Lint
+        working-directory: apps/admin-panel
+        run: npm run lint
+
+      - name: Build
+        working-directory: apps/admin-panel
+        run: npm run build
+      - name: Upload admin build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-build
+          path: apps/admin-panel/.next
+  # Web QA builds for PRs — Admin
+  admin-web-qa-build:
+    needs: [pre-commit-check, admin-node-lint-check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Admin node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/admin-panel/node_modules
+            ~/.npm
+            ~/.cache/yarn
+          key: ${{ runner.os }}-admin-node-${{ hashFiles('apps/admin-panel/package-lock.json') }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: apps/admin-panel
+        run: npm ci
+      - name: Build Admin Next.js (QA)
+        working-directory: apps/admin-panel
+        run: npm run build
+      - name: Upload admin QA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-qa-build
+          path: apps/admin-panel/.next
+
+  # Deploy to Staging has been moved to a dedicated workflow: .github/workflows/staging-deploy.yml

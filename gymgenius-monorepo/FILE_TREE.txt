@@ -1,0 +1,100 @@
+gymgenius-monorepo/
+├── 📄 package.json                         # Root workspace config
+├── 📄 .gitignore                            # Git ignore rules
+├── 📄 README.md                             # Project overview
+├── 📄 QUICK_START.md                        # Development setup guide
+├── 📄 IMPLEMENTATION_SUMMARY.md             # Complete implementation details
+├── 📄 STATUS_REPORT.md                      # Implementation status
+│
+├── 📁 apps/                                 # Client applications
+│   ├── 📁 client-app/                       # Flutter mobile app for clients
+│   │   ├── 📄 pubspec.yaml                  # Flutter dependencies
+│   │   ├── 📄 .env                          # Environment configuration
+│   │   └── 📁 lib/
+│   │       ├── 📄 main.dart                 # App entry point
+│   │       ├── 📁 core/theme/
+│   │       │   └── 📄 app_theme.dart        # Biometric Glow Design System
+│   │       ├── 📁 providers/
+│   │       │   ├── 📄 auth_provider.dart    # Firebase authentication
+│   │       │   ├── 📄 workout_provider.dart # Workout state management
+│   │       │   ├── 📄 meal_provider.dart    # Meal state management
+│   │       │   └── 📄 chat_provider.dart    # Chat state management
+│   │       ├── 📁 screens/
+│   │       │   ├── 📄 splash_screen.dart    # Animated splash
+│   │       │   ├── 📁 auth/
+│   │       │   │   └── 📄 login_screen.dart # Login/signup UI
+│   │       │   └── 📁 home/
+│   │       │       └── 📄 home_screen.dart  # Home with navigation
+│   │       └── 📁 widgets/
+│   │           └── 📄 kinetic_button.dart   # Animated button
+│   │
+│   ├── 📁 trainer-app/                      # Flutter mobile app for trainers
+│   │   ├── 📄 pubspec.yaml                  # Flutter dependencies
+│   │   └── 📁 lib/
+│   │       ├── 📄 main.dart                 # App entry point
+│   │       ├── 📁 providers/
+│   │       │   ├── �� auth_provider.dart    # Authentication
+│   │       │   └── 📄 client_provider.dart  # Client management
+│   │       └── 📁 screens/
+│   │           └── 📄 splash_screen.dart    # Splash screen
+│   │
+│   ├── 📁 nutritionist-panel/               # Next.js web panel
+│   │   ├── 📄 package.json                  # npm dependencies
+│   │   ├── 📄 next.config.js                # Next.js config
+│   │   ├── 📄 tailwind.config.js            # Tailwind config
+│   │   ├── 📄 tsconfig.json                 # TypeScript config
+│   │   ├── 📁 app/
+│   │   │   ├── 📄 layout.tsx                # Root layout
+│   │   │   └── 📄 page.tsx                  # Dashboard
+│   │   └── 📁 styles/
+│   │       └── 📄 globals.css               # Global styles
+│   │
+│   └── 📁 admin-panel/                      # Next.js admin dashboard
+│       ├── 📄 package.json                  # npm dependencies
+│       ├── 📄 next.config.js                # Next.js config
+│       ├── 📄 tailwind.config.js            # Tailwind config
+│       ├── 📄 tsconfig.json                 # TypeScript config
+│       └── 📁 app/
+│           ├── 📄 layout.tsx                # Root layout
+│           ├── 📄 page.tsx                  # Admin dashboard
+│           └── 📄 globals.css               # Global styles
+│
+├── 📁 packages/                             # Shared packages
+│   ├── 📁 backend/                          # FastAPI backend
+│   │   ├── 📄 pyproject.toml                # Poetry dependencies
+│   │   ├── 📄 alembic.ini                   # Alembic config
+│   │   ├── 📄 .env.example                  # Environment template
+│   │   ├── 📁 app/
+│   │   │   ├── 📄 main.py                   # FastAPI app
+│   │   │   ├── 📄 config.py                 # Configuration
+│   │   │   ├── 📄 db.py                     # Database setup
+│   │   │   ├── 📄 models.py                 # SQLAlchemy models
+│   │   │   ├── 📄 schemas.py                # Pydantic schemas
+│   │   │   ├── 📄 repository.py             # Data access layer
+│   │   │   └── 📁 services/
+│   │   │       └── 📄 razorpay_service.py   # Payment service
+│   │   ├── �� alembic/
+│   │   │   ├── 📄 env.py                    # Migration environment
+│   │   │   └── 📁 versions/
+│   │   │       └── 📄 001_initial_migration.py # Initial schema
+│   │   ├── 📁 socketio/                     # Socket.io server
+│   │   │   ├── 📄 package.json              # npm dependencies
+│   │   │   └── 📄 server.js                 # Socket.io server
+│   │   └── 📁 tests/                        # Backend tests
+│   │       ├── 📄 conftest.py               # Test fixtures
+│   │       └── 📄 test_models.py            # Model tests
+│   │
+│   ├── 📁 shared-ui/                        # Shared React components (future)
+│   └── 📁 shared-types/                     # Shared TypeScript types (future)
+│
+├── 📁 docs/                                 # Documentation
+│   ├── 📄 ARCHITECTURE.md                   # System architecture
+│   ├── 📄 API.md                            # API reference
+│   └── 📄 DEPLOYMENT.md                     # Deployment guide
+│
+├── 📁 .github/                              # GitHub configuration
+│   └── 📁 workflows/
+│       └── 📄 ci.yml                        # CI/CD pipeline
+│
+└── 📁 scripts/                              # Utility scripts (future)
+

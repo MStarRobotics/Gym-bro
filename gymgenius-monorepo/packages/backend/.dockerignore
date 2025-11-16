@@ -1,0 +1,8 @@
+__pycache__/
+venv/
+*.pyc
+.env
+dist/
+node_modules/
+*.egg-info
+poetry.lock

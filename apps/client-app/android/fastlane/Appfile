@@ -1,0 +1,2 @@
+json_key_file('/tmp/gplay.json')
+package_name(ENV['GPLAY_PACKAGE_NAME'] || 'com.yourcompany.clientapp')
