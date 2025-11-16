@@ -333,7 +333,7 @@ async def verify_payment(
         if not os.getenv("RAZORPAY_KEY_SECRET"):
             # If no secret configured, log and accept for now (test/stub mode)
             logger.warning(
-                "PAYMENT_VERIFY: Missing RAZORPAY_KEY_SECRET; " "skipping verification"
+                "PAYMENT_VERIFY: Missing RAZORPAY_KEY_SECRET; skipping verification"
             )
         else:
             _msg = (
