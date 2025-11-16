@@ -246,7 +246,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with 🔥 by the GymGenius Team**
 
-View original app:
-https://ai.studio/apps/drive/1W3lop-z2Tz1RaYJCepbN64sTUmh1aB2y
+View on GitHub:
+[MStarRobotics/Gym-bro](https://github.com/MStarRobotics/Gym-bro)
 
 </div>
