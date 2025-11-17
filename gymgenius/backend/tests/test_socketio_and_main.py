@@ -24,17 +24,14 @@ def test_broadcast_has_timestamp_and_logs(caplog):
     )
     # Check it logs trainer id
     assert any(
-        "trainer_id=trainer-1" in rec.getMessage()
-        or "trainer-1" in rec.getMessage()
+        "trainer_id=trainer-1" in rec.getMessage() or "trainer-1" in rec.getMessage()
         for rec in caplog.records
     )
 
 
 def test_chat_message_timestamp_message_id(capsys):
     # send a chat message and ensure it sets timestamp and id
-    asyncio.run(
-        socketio_service.send_chat_message("user-1", "user-2", "Hello")
-    )
+    asyncio.run(socketio_service.send_chat_message("user-1", "user-2", "Hello"))
     # We can't easily access the event payload, but the method logs a message
 
 

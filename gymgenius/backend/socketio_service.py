@@ -171,9 +171,7 @@ class SocketIOService:
         # )
 
         await asyncio.sleep(0)
-        logger.info(
-            f"SOCKET_CHAT: Message sent | from={sender_id} | to={recipient_id}"
-        )
+        logger.info(f"SOCKET_CHAT: Message sent | from={sender_id} | to={recipient_id}")
         return _event_data
 
     async def broadcast_booking_update(self, booking_id: str, status: str):

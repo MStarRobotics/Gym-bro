@@ -68,7 +68,7 @@
     ],
     "*.py": [
       "black",
-      "flake8"
+      "flake8 --max-line-length=88 --exclude=__pycache__,venv"
     ]
   }
 }
